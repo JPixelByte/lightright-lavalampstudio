@@ -93,3 +93,9 @@ Mac Style OS:
 
 Carl's Creative Coding Club: Curve Wipe:
 https://www.creativecodingclub.com/bundles/creative-coding-club
+
+GSAP particle explosion: 
+2026 GSAP (https://codepen.io/GreenSock/pen/VwGdvj)
+
+Shalom 🕊️✌🏾Aleichem
+
