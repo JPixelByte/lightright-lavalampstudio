@@ -22,10 +22,32 @@
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 
+  <style>
+    /* #emitter {
+      position: absolute;
+      z-index: 3000;
+      top: 30%;
+      left: 20%;
+      background-color: #222;
+      border: dashed 2px var(--color-surface-white);
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+    } */
+
+    .dot {
+      background-color: #e44b05ec;
+      border-radius: 50%;
+      position: absolute;
+      z-index: 5000;
+      pointer-events: none;
+    }
+  </style>
 
 </head>
 
 <body>
+  <div id="emitter"></div>
 
   <!-- Start of: Water Wave-->
   <!-- The water-wave transition runs on page load; Space and GSAP Developer Tools control its playhead. -->
@@ -59,7 +81,8 @@
 
 
 
-  <div class="app">
+  <div class="app" data-power-switch="true" data-button-hover-sound="soundeffects/flitsmall.mp3"
+    data-mobile-dock-toggle="true">
     <header class="topbar">
       <div class="top-left-actions">
         <button class="icon-button" id="fullscreenButton" title="Toggle fullscreen" aria-label="Enter fullscreen">
@@ -93,20 +116,38 @@
       </div>
     </header>
 
+    <div class="mobile-shortcuts" aria-label="Mobile animation controls">
+      <button class="mobile-shortcut" id="replayWaveButton" type="button" aria-label="Replay water wave"
+        title="Replay water wave">
+        <i class="fa-solid fa-water" aria-hidden="true"></i>
+      </button>
+      <button class="mobile-shortcut" id="toggleDockButton" type="button" aria-label="Show Mac-style dock"
+        aria-expanded="false" title="Show Mac-style dock">
+        <i class="fa-solid fa-eye" aria-hidden="true"></i>
+      </button>
+    </div>
+
     <main class="stage" aria-label="Animated lava lamp">
       <canvas id="lampCanvas"></canvas>
+      <button class="lamp-power-toggle" id="lampPowerToggle" type="button" aria-label="Turn lava lamp on"
+        aria-pressed="false" title="Turn lava lamp on">
+        <i class="fa-solid fa-power-off" aria-hidden="true"></i>
+      </button>
       <button class="lamp-toggle" id="lampToggle" type="button" aria-label="Pause lava lamp" aria-pressed="true"
-        title="Pause lava lamp">
+        title="Pause lava lamp" hidden>
         <i class="fa-solid fa-pause" aria-hidden="true"></i>
       </button>
-      <div class="size-control" aria-label="Lamp size">
-        <button class="size-button" data-size="small"><i class="fa-solid fa-minimize"></i> Small</button>
-        <button class="size-button active" data-size="medium"><i class="fa-regular fa-square"></i> Medium</button>
-        <button class="size-button" data-size="large"><i class="fa-solid fa-expand"></i> Large</button>
-      </div>
     </main>
 
-    <aside class="settings" id="settingsPanel">
+    <div class="size-control" role="group" aria-label="Lamp size">
+      <button class="size-button" data-size="small"><i class="fa-solid fa-minimize" aria-hidden="true"></i>
+        Small</button>
+      <button class="size-button active" data-size="medium"><i class="fa-regular fa-square" aria-hidden="true"></i>
+        Medium</button>
+      <button class="size-button" data-size="large"><i class="fa-solid fa-expand" aria-hidden="true"></i> Large</button>
+    </div>
+
+    <aside class="settings collapsed" id="settingsPanel">
       <div class="settings-head">
         <div>
           <div class="settings-title">LAMP STUDIO</div>
@@ -181,7 +222,7 @@
       </div>
     </aside>
 
-    <section class="player" aria-label="Custom music player">
+    <section class="player" id="audio-player" aria-label="Custom music player">
       <button class="player-toggle" id="togglePlayer" type="button" aria-expanded="true" aria-label="Hide music player"
         title="Hide music player; drag to move">
         <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
@@ -243,8 +284,9 @@
         <h3>Refresh and water waves</h3>
         <p>Use the refresh icon to reload the page. When focus is not in a control,
           press Space to pause or resume the water-wave animation; if it has
-          finished, Space plays it again. The GSAP Developer scrubber also controls
-          its playhead.</p>
+          finished, Space plays it again. On a small screen, use the water icon
+          to replay the wave and the eye icon to show or hide the Mac-style dock.
+          The GSAP Developer scrubber also controls its playhead on desktop.</p>
 
         <h3>Keyboard shortcuts</h3>
         <p>Press H to show or hide the GSAP Developer Tools scrubber. Press M to
@@ -345,20 +387,23 @@
 
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.15.1/gsap.min.js"></script>
-  <script src='https://unpkg.com/gsap@3.15.1/dist/MorphSVGPlugin.min.js'></script>
+  <script src="https://unpkg.com/gsap@3.15.1/dist/MorphSVGPlugin.min.js"></script>
 
 
 
+  <script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.3/jquery.min.js'></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.1/dist/Draggable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.1/dist/InertiaPlugin.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.1/dist/Physics2DPlugin.min.js"></script>
 
 
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.1/dist/GSDevTools.min.js"></script>
-  <!-- 
-  <script src='https://assets.codepen.io/16327/GSDevTools3.min.js?r=1234'></script>
- -->
+  <!-- <script src='https://assets.codepen.io/16327/GSDevTools3.min.js?r=1234'></script>-->
 
   <script src="scripts/flowwipe.js"></script>
   <script src="scripts/lavalamp.js"></script>
   <script src="scripts/macOSnav.js"></script>
+  <script src="scripts/gsap-particle-explosions.js"></script>
 
 
 
