@@ -19,6 +19,11 @@
       let width = 0, height = 0, dpr = 1, start = performance.now();
       let animationTime = 0, lastFrameTime = start, canvasOffsetX = 0, canvasOffsetY = 0;
       let lampPlaying = true;
+      const powerToggle = document.getElementById("lampPowerToggle");
+      const powerSwitchEnabled = document.querySelector(".app").dataset.powerSwitch === "true" && Boolean(powerToggle);
+      let lampPowered = !powerSwitchEnabled;
+      let lampLight = lampPowered ? 1 : 0;
+      let powerClickAudioContext = null;
       let audioPlayerTop = 0;
       let blobs = [];
       const selectedGraphics = [];
@@ -75,9 +80,15 @@
       function draw(now) {
         requestAnimationFrame(draw);
         if (!width || !height) return;
-        if (lampPlaying) animationTime += Math.max(0, now - lastFrameTime) / 1000;
+        const frameDelta = Math.max(0, now - lastFrameTime) / 1000;
+        if (lampPlaying && (!powerSwitchEnabled || lampPowered)) animationTime += frameDelta;
+        if (powerSwitchEnabled) {
+          const targetLight = lampPowered ? 1 : 0;
+          lampLight += (targetLight - lampLight) * (1 - Math.exp(-5 * frameDelta));
+        }
         lastFrameTime = now;
         const t = animationTime;
+        const lightLevel = powerSwitchEnabled ? lampLight : 1;
         ctx.clearRect(0, 0, width, height);
 
         const cx = width / 2;
@@ -103,18 +114,29 @@
         const bodyW = lampW;
         const left = cx - bodyW / 2;
         const toggleSize = Math.max(10, Math.min(24, lampH * .046 * .84));
-        lampToggle.style.left = `${canvasOffsetX + cx}px`;
+        const controlOffset = powerSwitchEnabled && lampPowered ? bodyW * .16 : 0;
+        lampToggle.style.left = `${canvasOffsetX + cx + controlOffset}px`;
         lampToggle.style.top = `${canvasOffsetY + baseY + 1 + lampH * .023}px`;
         lampToggle.style.width = `${toggleSize}px`;
         lampToggle.style.height = `${toggleSize}px`;
         lampToggle.style.fontSize = `${toggleSize * .5}px`;
+        if (powerSwitchEnabled) {
+          const powerButtonSize = Math.max(24, Math.min(42, bodyW * .12));
+          powerToggle.hidden = false;
+          powerToggle.style.left = `${canvasOffsetX + cx - controlOffset}px`;
+          powerToggle.style.top = `${canvasOffsetY + baseY + 1 + lampH * .023}px`;
+          powerToggle.style.width = `${powerButtonSize}px`;
+          powerToggle.style.height = `${powerButtonSize}px`;
+          powerToggle.style.fontSize = `${powerButtonSize * .42}px`;
+          lampToggle.hidden = !lampPowered;
+        }
 
         const [wr, wg, wb] = hexRgb(settings.wax);
         const glowAlpha = settings.glow / 100;
 
         // Soft reflected light beneath the lamp.
         const floor = ctx.createRadialGradient(cx, baseY + 15, 1, cx, baseY + 15, bodyW * 1.4);
-        floor.addColorStop(0, `rgba(${wr},${wg},${wb},${.16 * glowAlpha})`);
+        floor.addColorStop(0, `rgba(${wr},${wg},${wb},${.16 * glowAlpha * lightLevel})`);
         floor.addColorStop(1, "rgba(0,0,0,0)");
         ctx.fillStyle = floor;
         ctx.beginPath(); ctx.ellipse(cx, baseY + 15, bodyW * 1.4, 30, 0, 0, Math.PI * 2); ctx.fill();
@@ -187,13 +209,23 @@
         ctx.lineCap = "butt";
 
         ctx.save();
-        ctx.shadowColor = `rgba(${wr},${wg},${wb},${.35 * glowAlpha})`;
-        ctx.shadowBlur = 25 * glowAlpha;
+        ctx.shadowColor = `rgba(${wr},${wg},${wb},${.35 * glowAlpha * lightLevel})`;
+        ctx.shadowBlur = 25 * glowAlpha * lightLevel;
         const liquid = ctx.createLinearGradient(0, bodyTop, 0, bodyBottom);
-        liquid.addColorStop(0, "rgba(255,255,255,.14)");
-        liquid.addColorStop(.14, settings.liquid);
-        liquid.addColorStop(.82, settings.liquid);
-        liquid.addColorStop(1, "rgba(255,255,255,.08)");
+        if (powerSwitchEnabled) {
+          const [lr, lg, lb] = hexRgb(settings.liquid);
+          const poweredColor = (red, green, blue, highlight = 0) =>
+            `rgb(${Math.round(red * lightLevel + (255 - red) * highlight * lightLevel)},${Math.round(green * lightLevel + (255 - green) * highlight * lightLevel)},${Math.round(blue * lightLevel + (255 - blue) * highlight * lightLevel)})`;
+          liquid.addColorStop(0, poweredColor(lr, lg, lb, .14));
+          liquid.addColorStop(.14, poweredColor(lr, lg, lb));
+          liquid.addColorStop(.82, poweredColor(lr, lg, lb));
+          liquid.addColorStop(1, poweredColor(lr, lg, lb, .08));
+        } else {
+          liquid.addColorStop(0, "rgba(255,255,255,.14)");
+          liquid.addColorStop(.14, settings.liquid);
+          liquid.addColorStop(.82, settings.liquid);
+          liquid.addColorStop(1, "rgba(255,255,255,.08)");
+        }
         ctx.fillStyle = liquid;
         ctx.fill(vessel);
         ctx.restore();
@@ -204,11 +236,13 @@
         // Subtle liquid illumination.
         const [lr, lg, lb] = hexRgb(settings.liquid);
         const liquidGlow = ctx.createRadialGradient(cx, bodyTop + (bodyBottom - bodyTop) * .65, 3, cx, bodyTop + (bodyBottom - bodyTop) * .65, bodyW * .85);
-        liquidGlow.addColorStop(0, `rgba(${wr},${wg},${wb},${.12 * glowAlpha})`);
+        liquidGlow.addColorStop(0, `rgba(${wr},${wg},${wb},${.12 * glowAlpha * lightLevel})`);
         liquidGlow.addColorStop(1, `rgba(${lr},${lg},${lb},0)`);
         ctx.fillStyle = liquidGlow;
         ctx.fillRect(left, bodyTop, bodyW, bodyBottom - bodyTop);
 
+        ctx.save();
+        ctx.globalAlpha = lightLevel;
         const blobVisuals = blobs.map(b => {
           const travel = (t * settings.speed * b.drift * b.direction + b.y + 10) % 1;
           const y = bodyBottom - travel * (bodyBottom - bodyTop);
@@ -281,15 +315,22 @@
           const imageY = bodyBottom - travel * (bodyBottom - bodyTop);
           const imageX = cx + (graphic.x - .5) * bodyW * .5 +
             Math.sin(t * .7 + graphic.phase) * bodyW * .07;
-          const imageSize = bodyW * .25;
+          const imageHeight = bodyW * .25 * graphic.scale * settings.blobScale;
+          const imageAspect = graphic.isLightning
+            ? 1 / 3
+            : graphic.image.naturalWidth / graphic.image.naturalHeight;
+          const imageWidth = imageHeight * imageAspect;
           ctx.save();
+          ctx.translate(imageX, imageY);
+          ctx.rotate(graphic.rotation + t * graphic.rotationSpeed * settings.speed);
           ctx.beginPath();
-          ctx.ellipse(imageX, imageY, imageSize * .52, imageSize * .46, 0, 0, Math.PI * 2);
+          ctx.ellipse(0, 0, imageWidth * .52, imageHeight * .46, 0, 0, Math.PI * 2);
           ctx.clip();
-          ctx.drawImage(graphic.image, imageX - imageSize / 2, imageY - imageSize / 2, imageSize, imageSize);
+          ctx.drawImage(graphic.image, -imageWidth / 2, -imageHeight / 2, imageWidth, imageHeight);
           ctx.restore();
         });
 
+        ctx.restore();
         ctx.restore();
 
         // Glass highlights, clipped to the vessel.
@@ -354,6 +395,63 @@
         lampToggle.setAttribute("aria-pressed", String(lampPlaying));
         lampToggle.title = `${lampPlaying ? "Pause" : "Play"} lava lamp`;
       });
+
+      if (powerSwitchEnabled) {
+        lampPlaying = false;
+        lampToggle.hidden = true;
+        lampToggle.setAttribute("aria-pressed", "false");
+        lampToggle.setAttribute("aria-label", "Play lava lamp");
+        lampToggle.title = "Play lava lamp";
+
+        powerToggle.addEventListener("click", () => {
+          lampPowered = !lampPowered;
+          lampPlaying = lampPowered;
+          lastFrameTime = performance.now();
+          powerToggle.setAttribute("aria-pressed", String(lampPowered));
+          powerToggle.setAttribute("aria-label", `${lampPowered ? "Turn off" : "Turn on"} lava lamp`);
+          powerToggle.title = `${lampPowered ? "Turn off" : "Turn on"} lava lamp`;
+          lampToggle.hidden = !lampPowered;
+          const icon = lampToggle.querySelector("i");
+          icon.className = `fa-solid fa-${lampPlaying ? "pause" : "play"}`;
+          lampToggle.setAttribute("aria-label", `${lampPlaying ? "Pause" : "Play"} lava lamp`);
+          lampToggle.setAttribute("aria-pressed", String(lampPlaying));
+          lampToggle.title = `${lampPlaying ? "Pause" : "Play"} lava lamp`;
+          playPowerClick();
+        });
+      }
+
+      function playPowerClick() {
+        try {
+          if (!window.AudioContext) throw new Error("Web Audio is not supported");
+          if (!powerClickAudioContext) powerClickAudioContext = new AudioContext();
+
+          const playClick = () => {
+            const now = powerClickAudioContext.currentTime;
+            const oscillator = powerClickAudioContext.createOscillator();
+            const volume = powerClickAudioContext.createGain();
+            oscillator.type = "square";
+            oscillator.frequency.setValueAtTime(1250, now);
+            oscillator.frequency.exponentialRampToValueAtTime(220, now + .045);
+            volume.gain.setValueAtTime(.0001, now);
+            volume.gain.exponentialRampToValueAtTime(.12, now + .003);
+            volume.gain.exponentialRampToValueAtTime(.0001, now + .05);
+            oscillator.connect(volume);
+            volume.connect(powerClickAudioContext.destination);
+            oscillator.start(now);
+            oscillator.stop(now + .05);
+          };
+
+          if (powerClickAudioContext.state === "suspended") {
+            powerClickAudioContext.resume().then(playClick, () => {
+              showToast("The power click could not play in this browser");
+            });
+          } else {
+            playClick();
+          }
+        } catch (error) {
+          showToast("The power click could not play in this browser");
+        }
+      }
 
       function roundedRect(c, x, y, w, h, r) {
         c.beginPath();
@@ -558,17 +656,16 @@
               showToast("This dock image is not available");
               return;
             }
-            if (selectedGraphics.some(graphic => graphic.image === image)) {
-              showToast(`${graphicName} is already in the lamp`);
-              return;
-            }
-
             selectedGraphics.push({
               image,
+              isLightning: /lightning/i.test(graphicName),
               x: .3 + Math.random() * .4,
               offset: Math.random(),
               phase: Math.random() * Math.PI * 2,
-              drift: .035 + Math.random() * .045
+              drift: .035 + Math.random() * .045,
+              scale: .65 + Math.random() * .75,
+              rotation: Math.random() * Math.PI * 2,
+              rotationSpeed: (Math.random() - .5) * .5
             });
             showToast(`${graphicName} added to the lamp`);
           });
@@ -588,11 +685,15 @@
       const helpDialog = document.getElementById("helpDialog");
       const helpCard = helpDialog.querySelector(".help-card");
       const helpButton = document.getElementById("helpButton");
+      const appRoot = document.querySelector(".app");
+      const dock = document.getElementById("wrapper");
+      const waterWaveOverlay = document.getElementById("water-wave");
       let helpClosing = false;
       let helpScrollY = 0;
       let bodyStylesBeforeHelp;
 
       document.body.appendChild(helpDialog);
+      if (dock) appRoot.appendChild(dock);
 
       function lockPageForHelp() {
         helpScrollY = window.scrollY;
@@ -696,6 +797,27 @@
         ".icon-button, .color-control, .preset-button, .random-button, .size-button, .play-button, .load-button, .player-toggle"
       );
 
+      const app = document.querySelector(".app");
+      const buttonHoverSoundPath = app.dataset.buttonHoverSound;
+      if (buttonHoverSoundPath) {
+        const buttonHoverSound = new Audio(buttonHoverSoundPath);
+        buttonHoverSound.preload = "auto";
+        let hoverSoundErrorShown = false;
+
+        app.addEventListener("pointerover", event => {
+          const button = event.target instanceof Element ? event.target.closest("button") : null;
+          if (!button || button.closest(".settings") ||
+              (event.relatedTarget instanceof Node && button.contains(event.relatedTarget))) return;
+
+          buttonHoverSound.currentTime = 0;
+          buttonHoverSound.play().catch(() => {
+            if (hoverSoundErrorShown) return;
+            hoverSoundErrorShown = true;
+            showToast("Button hover sound could not play");
+          });
+        });
+      }
+
       hoverTargets.forEach(target => {
         target.addEventListener("mouseenter", () => {
           if (!window.gsap || reducedMotion) return;
@@ -716,16 +838,21 @@
             });
           }
 
-          for (let i = 0; i < 6; i++) {
+          for (let i = 0; i < 7; i++) {
             const particle = document.createElement("span");
             particle.className = "hover-particle";
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 28 + Math.random() * 14;
+            const size = 2 + Math.random() * 2;
+            particle.style.width = `${size}px`;
+            particle.style.height = `${size}px`;
             target.appendChild(particle);
             gsap.to(particle, {
-              x: (Math.random() - 0.5) * 34,
-              y: (Math.random() - 0.5) * 30,
+              x: Math.cos(angle) * distance,
+              y: Math.sin(angle) * distance,
               scale: 0,
               autoAlpha: 0,
-              duration: 0.42 + Math.random() * 0.16,
+              duration: 0.48 + Math.random() * 0.16,
               ease: "power2.out",
               onComplete: () => particle.remove()
             });
@@ -790,6 +917,15 @@
 
       document.addEventListener("fullscreenchange", () => {
         const isFullscreen = Boolean(document.fullscreenElement);
+        if (document.fullscreenElement === appRoot) {
+          appRoot.appendChild(helpDialog);
+          if (waterWaveOverlay) appRoot.appendChild(waterWaveOverlay);
+          document.dispatchEvent(new Event("waterwavereplay"));
+        } else {
+          document.body.appendChild(helpDialog);
+          if (waterWaveOverlay) document.body.appendChild(waterWaveOverlay);
+        }
+
         fullscreenButton.innerHTML = isFullscreen
           ? '<i class="fa-solid fa-compress"></i>'
           : '<i class="fa-solid fa-expand"></i>';
@@ -816,8 +952,14 @@
       // }));
 
       const panel = document.getElementById("settingsPanel");
+      const settingsToggle = document.getElementById("toggleSettings");
+      panel.classList.add("collapsed");
+      settingsToggle.setAttribute("aria-expanded", "false");
+      settingsToggle.setAttribute("aria-controls", "settingsPanel");
+
       function togglePanel() {
-        panel.classList.toggle("collapsed");
+        const isCollapsed = panel.classList.toggle("collapsed");
+        settingsToggle.setAttribute("aria-expanded", String(!isCollapsed));
         if (window.gsap && !reducedMotion) {
           gsap.fromTo(document.querySelector("#toggleSettings i"), { rotate: -45 }, {
             rotate: 0,
@@ -826,7 +968,7 @@
           });
         }
       }
-      document.getElementById("toggleSettings").addEventListener("click", togglePanel);
+      settingsToggle.addEventListener("click", togglePanel);
       document.getElementById("closeSettings").addEventListener("click", togglePanel);
 
       const moods = {

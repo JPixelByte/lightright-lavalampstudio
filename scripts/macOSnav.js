@@ -1,4 +1,4 @@
-console.clear();
+// console.clear();
 
 let wrapps = document.querySelectorAll(".wrapper");
 let icons = document.querySelectorAll(".toolbarItem");
@@ -13,29 +13,26 @@ gsap.set(icons, { transformOrigin: "50% 120%" });
 gsap.set(dock, { position: "relative" });
 
 const compactDock = window.matchMedia("(max-width: 700px)");
+const tinyDock = window.matchMedia("(max-width: 528px)");
 function sizeDock() {
-  min = compactDock.matches ? 36 : 48;
-  max = compactDock.matches ? 54 : 120;
+  min = tinyDock.matches ? 24 : compactDock.matches ? 36 : 48;
+  max = tinyDock.matches ? 26 : compactDock.matches ? 54 : 120;
   bound = min * Math.PI;
-  gsap.set(icons, { height: compactDock.matches ? 32 : 40 });
-  gsap.set(dock, { height: compactDock.matches ? 48 : 60 });
+  gsap.set(icons, { height: tinyDock.matches ? 24 : compactDock.matches ? 32 : 40 });
+  gsap.set(dock, { height: tinyDock.matches ? 38 : compactDock.matches ? 48 : 60 });
 }
 sizeDock();
-if (compactDock.addEventListener) {
-  compactDock.addEventListener("change", sizeDock);
-} else {
-  compactDock.addListener(sizeDock);
-}
-
-// NOT IN USE: BUT MAY COME IN HANDY LATER
-// dock.addEventListener("click", (event) => {
-//   let offset = dock.getBoundingClientRect().left + firstIcon.offsetLeft;
-//   console.log("Click event:", event.clientX, "Offset:", offset);
-//   updateIcons(event.clientX - offset);
-// });
+const listenForDockResize = query =>
+  query.addEventListener ? query.addEventListener("change", sizeDock) : query.addListener(sizeDock);
+listenForDockResize(compactDock);
+listenForDockResize(tinyDock);
 
 dock.addEventListener("mousemove", (event) => {
-  let offset = dock.getBoundingClientRect().left + dock.clientLeft + firstIcon.offsetLeft - dock.scrollLeft;
+  let offset =
+    dock.getBoundingClientRect().left +
+    dock.clientLeft +
+    firstIcon.offsetLeft -
+    dock.scrollLeft;
   updateIcons(event.clientX - offset);
 });
 
@@ -70,12 +67,49 @@ function updateIcons(pointer) {
   }
 }
 const wrapper = document.getElementById("wrapper");
+const toggleDockButton = document.getElementById("toggleDockButton");
+const app = document.querySelector(".app");
+const mobileDockToggle = window.matchMedia("(max-width: 700px)");
+
+function syncDockToggle(isVisible) {
+  if (toggleDockButton) {
+    toggleDockButton.setAttribute("aria-expanded", String(isVisible));
+    toggleDockButton.setAttribute(
+      "aria-label",
+      isVisible ? "Hide Mac-style dock" : "Show Mac-style dock"
+    );
+    toggleDockButton.title = isVisible ? "Hide Mac-style dock" : "Show Mac-style dock";
+    toggleDockButton.innerHTML = isVisible
+      ? '<i class="fa-solid fa-eye-slash" aria-hidden="true"></i>'
+      : '<i class="fa-solid fa-eye" aria-hidden="true"></i>';
+  }
+}
+
+function toggleDock() {
+  const isVisible = getComputedStyle(wrapper).visibility !== "hidden";
+  wrapper.style.visibility = isVisible ? "hidden" : "visible";
+  syncDockToggle(!isVisible);
+}
+
+if (app.dataset.mobileDockToggle === "true" && mobileDockToggle.matches) {
+  wrapper.style.visibility = "hidden";
+}
+
+syncDockToggle(getComputedStyle(wrapper).visibility !== "hidden");
+
+if (toggleDockButton) {
+  toggleDockButton.addEventListener("click", toggleDock);
+}
 
 document.addEventListener("keydown", (event) => {
   if (event.key.toLowerCase() !== "m" || event.repeat) return;
-  if (event.target instanceof Element &&
-      event.target.closest("input, textarea, select, button, a, [contenteditable='true'], [role='slider']")) return;
+  if (
+    event.target instanceof Element &&
+    event.target.closest(
+      "input, textarea, select, button, a, [contenteditable='true'], [role='slider']",
+    )
+  )
+    return;
 
-  wrapper.style.visibility =
-    wrapper.style.visibility === "hidden" ? "visible" : "hidden";
+  toggleDock();
 });

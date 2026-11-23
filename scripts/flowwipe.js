@@ -1,5 +1,7 @@
 //timeline for the first morph
 
+gsap.registerPlugin(MorphSVGPlugin);
+
 const svgElements = document.querySelectorAll(".overlay, .overlay--2");
 const water = document.querySelectorAll("#water-wave");
 
@@ -47,7 +49,33 @@ const devTools = window.GSDevTools
 
 if (devTools) {
   gsap.to(".gs-dev-tools", { y: 2 });
+
+  const devToolsPanel = document.querySelector(".gs-dev-tools");
+  const appRoot = document.querySelector(".app");
+  document.addEventListener("fullscreenchange", () => {
+    if (!devToolsPanel || !appRoot) return;
+    if (document.fullscreenElement === appRoot) {
+      appRoot.appendChild(devToolsPanel);
+    } else {
+      document.body.appendChild(devToolsPanel);
+    }
+  });
 }
+
+const replayWaveButton = document.getElementById("replayWaveButton");
+function replayWave() {
+  svgElements.forEach((element) => {
+    element.style.display = "block";
+  });
+  gsap.set(water, { autoAlpha: 1 });
+  main.pause(0);
+  main.play();
+}
+
+if (replayWaveButton) {
+  replayWaveButton.addEventListener("click", replayWave);
+}
+document.addEventListener("waterwavereplay", replayWave);
 
 document.addEventListener("keydown", (event) => {
   if (event.key.toLowerCase() !== "h" || event.repeat || !devTools) return;
@@ -66,12 +94,14 @@ if (refreshButton) {
 
 document.addEventListener("keydown", (event) => {
   if (event.code !== "Space" || event.repeat) return;
-  if (event.target instanceof Element &&
-      event.target.closest("input, textarea, select, button, a, [contenteditable='true'], [role='slider']")) return;
+  const target = event.target instanceof Element ? event.target : null;
+  const isPowerButtonFocused = target?.closest("#lampPowerToggle");
+  if (target?.closest("input, textarea, select, a, [contenteditable='true'], [role='slider']")) return;
+  if (target?.closest("button") && !isPowerButtonFocused) return;
 
   event.preventDefault();
   if (main.progress() >= 1) {
-    main.restart();
+    replayWave();
   } else if (main.paused()) {
     main.play();
   } else {
