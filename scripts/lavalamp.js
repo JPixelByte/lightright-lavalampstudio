@@ -467,6 +467,47 @@
 
       const customMoodsKey = "light-right.custom-moods.v1";
       const customMoodsContainer = document.getElementById("customMoods");
+      const svgNamespace = "http://www.w3.org/2000/svg";
+      const waxIconPaths = [
+        "M16 2 C13 7 6 13 6 19 C6 25 10 29 16 29 C22 29 26 25 26 19 C26 13 19 7 16 2 Z",
+        "M16 3 C12 9 5 13 7 20 C8 26 12 29 17 28 C23 27 27 22 24 16 C22 11 18 7 16 3 Z",
+        "M16 3 C20 8 26 12 25 18 C24 25 19 29 13 27 C7 25 5 20 8 15 C10 11 14 7 16 3 Z"
+      ];
+
+      function createWaxIcon(color, shapeIndex = 0, className = "preset-blob-icon") {
+        const svg = document.createElementNS(svgNamespace, "svg");
+        svg.setAttribute("viewBox", "0 0 32 32");
+        svg.setAttribute("class", className);
+        svg.setAttribute("aria-hidden", "true");
+
+        const path = document.createElementNS(svgNamespace, "path");
+        path.setAttribute("d", waxIconPaths[shapeIndex % waxIconPaths.length]);
+        path.setAttribute("fill", color);
+        svg.appendChild(path);
+        return svg;
+      }
+
+      function addPresetBlob(button, color, shapeIndex) {
+        button.style.setProperty("--preset-wax", color);
+        const icon = createWaxIcon(color, shapeIndex);
+        const path = icon.querySelector("path");
+        const normalShape = waxIconPaths[shapeIndex % waxIconPaths.length];
+        const hoverShape = waxIconPaths[(shapeIndex + 1) % waxIconPaths.length];
+        button.prepend(icon);
+
+        if (window.gsap && typeof MorphSVGPlugin !== "undefined") {
+          button.addEventListener("pointerenter", event => {
+            if (
+              event.pointerType === "touch" ||
+              window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            ) return;
+            gsap.to(path, { morphSVG: hoverShape, duration: 0.24, ease: "sine.inOut" });
+          });
+          button.addEventListener("pointerleave", () => {
+            gsap.to(path, { morphSVG: normalShape, duration: 0.3, ease: "sine.inOut" });
+          });
+        }
+      }
 
       function isValidCustomMood(mood) {
         return mood && typeof mood.name === "string" && mood.name.trim() &&
@@ -526,6 +567,7 @@
           applyButton.className = "preset-button custom-mood-button";
           applyButton.textContent = mood.name;
           applyButton.title = mood.name;
+          addPresetBlob(applyButton, mood.settings.wax, index);
           applyButton.addEventListener("click", () => {
             applyMoodSettings(mood.settings);
             showToast(`${mood.name} mood applied`);
@@ -793,9 +835,99 @@
 
       // Start of: Size Buttons
       const sizeButtons = document.querySelectorAll(".size-button");
+      const sizeControl = document.querySelector(".size-control");
       const hoverTargets = document.querySelectorAll(
         ".icon-button, .color-control, .preset-button, .random-button, .size-button, .play-button, .load-button, .player-toggle"
       );
+
+      const desktopMorphMotion = window.matchMedia(
+        "(min-width: 701px) and (prefers-reduced-motion: no-preference)"
+      );
+      if (desktopMorphMotion.matches && window.gsap && typeof MorphSVGPlugin !== "undefined") {
+        gsap.registerPlugin(MorphSVGPlugin);
+
+        const brandMark = document.querySelector(".brand-mark");
+        if (brandMark) {
+          const icon = document.createElementNS(svgNamespace, "svg");
+          icon.setAttribute("viewBox", "0 0 48 48");
+          icon.setAttribute("class", "brand-morph-icon");
+          icon.setAttribute("aria-hidden", "true");
+
+          const iconPath = document.createElementNS(svgNamespace, "path");
+          const dropletShape = "M24 3 C20 10 10 20 10 29 C10 37 16 43 24 43 C32 43 38 37 38 29 C38 20 28 10 24 3 Z";
+          const waxShape = "M24 6 C31 5 39 12 40 20 C43 28 37 39 29 40 C20 44 9 38 8 29 C5 20 12 10 19 9 C21 8 22 7 24 6 Z";
+          iconPath.setAttribute("d", dropletShape);
+          iconPath.setAttribute("fill", "currentColor");
+          icon.appendChild(iconPath);
+          brandMark.replaceChildren(icon);
+          brandMark.setAttribute("role", "img");
+          brandMark.setAttribute("aria-label", "Lava lamp");
+
+          let iconTimeline;
+          brandMark.addEventListener("pointerenter", () => {
+            if (iconTimeline?.isActive()) return;
+            gsap.set(iconPath, { attr: { d: dropletShape } });
+            iconTimeline = gsap.timeline()
+              .to(icon, {
+                scale: 1.14,
+                duration: 0.16,
+                ease: "back.out(1.8)"
+              })
+              .to(iconPath, {
+                morphSVG: waxShape,
+                duration: 0.32,
+                ease: "sine.inOut"
+              }, 0.08)
+              .to(iconPath, {
+                morphSVG: dropletShape,
+                duration: 0.4,
+                ease: "sine.inOut"
+              }, 0.4)
+              .to(icon, {
+                scale: 1,
+                duration: 0.2,
+                ease: "sine.out"
+              }, 0.65);
+          });
+        }
+
+        if (sizeControl) {
+          const sizeBlob = createWaxIcon("#ff8a24", 0, "size-wax-preview");
+          const sizeBlobPath = sizeBlob.querySelector("path");
+          sizeControl.prepend(sizeBlob);
+          const initialSize = document.querySelector(".size-button.active")?.dataset.size;
+          const sizeShapes = {
+            small: waxIconPaths[0],
+            medium: waxIconPaths[1],
+            large: waxIconPaths[2]
+          };
+          if (initialSize && sizeShapes[initialSize]) {
+            sizeBlobPath.setAttribute("d", sizeShapes[initialSize]);
+          }
+          sizeButtons.forEach(button => {
+            button.addEventListener("click", () => {
+              const shape = sizeShapes[button.dataset.size];
+              if (!shape) return;
+              gsap.timeline()
+                .to(sizeBlob, {
+                  scale: 1.35,
+                  duration: 0.16,
+                  ease: "back.out(1.8)"
+                })
+                .to(sizeBlobPath, {
+                  morphSVG: shape,
+                  duration: 0.42,
+                  ease: "sine.inOut"
+                }, 0.04)
+                .to(sizeBlob, {
+                  scale: 1,
+                  duration: 0.24,
+                  ease: "sine.out"
+                }, 0.34);
+            });
+          });
+        }
+      }
 
       const app = document.querySelector(".app");
       const buttonHoverSoundPath = app.dataset.buttonHoverSound;
@@ -976,6 +1108,11 @@
         sunset: { wax: "#ff6b55", liquid: "#522552", speed: .75, glow: 62, count: 7 },
         ocean: { wax: "#68a8ff", liquid: "#102b50", speed: .8, glow: 48, count: 8 }
       };
+      const presetShapeIndexes = { aurora: 1, sunset: 0, ocean: 2 };
+      document.querySelectorAll("[data-preset]").forEach(button => {
+        const mood = moods[button.dataset.preset];
+        if (mood) addPresetBlob(button, mood.wax, presetShapeIndexes[button.dataset.preset]);
+      });
       document.querySelectorAll("[data-preset]").forEach(button => button.addEventListener("click", () => {
         const m = moods[button.dataset.preset];
         applyMoodSettings(m);

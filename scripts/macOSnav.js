@@ -4,6 +4,34 @@ let wrapps = document.querySelectorAll(".wrapper");
 let icons = document.querySelectorAll(".toolbarItem");
 let dock = document.querySelector(".toolbar");
 let firstIcon = icons[0];
+const dockSoundUrl = new URL("../soundeffects/echosmall.mp3", document.currentScript.src);
+const dockSoundVoices = Array.from({ length: 3 }, () => {
+  const audio = new Audio(dockSoundUrl);
+  audio.preload = "auto";
+  audio.volume = 0.35;
+  return audio;
+});
+let nextDockSoundVoice = 0;
+let echoPlaybackWarningShown = false;
+
+icons.forEach((icon) => {
+  icon.addEventListener("pointerenter", (event) => {
+    if (event.pointerType === "touch") return;
+    playSound();
+  });
+});
+
+function playSound() {
+  const audio = dockSoundVoices[nextDockSoundVoice];
+  nextDockSoundVoice = (nextDockSoundVoice + 1) % dockSoundVoices.length;
+  audio.pause();
+  audio.currentTime = 0;
+  audio.play().catch((error) => {
+    if (echoPlaybackWarningShown) return;
+    echoPlaybackWarningShown = true;
+    console.warn("Dock hover sound could not play:", error);
+  });
+}
 
 let min = 48; // 40 + margin
 let max = 120;
@@ -18,12 +46,18 @@ function sizeDock() {
   min = tinyDock.matches ? 24 : compactDock.matches ? 36 : 48;
   max = tinyDock.matches ? 26 : compactDock.matches ? 54 : 120;
   bound = min * Math.PI;
-  gsap.set(icons, { height: tinyDock.matches ? 24 : compactDock.matches ? 32 : 40 });
-  gsap.set(dock, { height: tinyDock.matches ? 38 : compactDock.matches ? 48 : 60 });
+  gsap.set(icons, {
+    height: tinyDock.matches ? 24 : compactDock.matches ? 32 : 40,
+  });
+  gsap.set(dock, {
+    height: tinyDock.matches ? 38 : compactDock.matches ? 48 : 60,
+  });
 }
 sizeDock();
-const listenForDockResize = query =>
-  query.addEventListener ? query.addEventListener("change", sizeDock) : query.addListener(sizeDock);
+const listenForDockResize = (query) =>
+  query.addEventListener
+    ? query.addEventListener("change", sizeDock)
+    : query.addListener(sizeDock);
 listenForDockResize(compactDock);
 listenForDockResize(tinyDock);
 
@@ -76,9 +110,11 @@ function syncDockToggle(isVisible) {
     toggleDockButton.setAttribute("aria-expanded", String(isVisible));
     toggleDockButton.setAttribute(
       "aria-label",
-      isVisible ? "Hide Mac-style dock" : "Show Mac-style dock"
+      isVisible ? "Hide Mac-style dock" : "Show Mac-style dock",
     );
-    toggleDockButton.title = isVisible ? "Hide Mac-style dock" : "Show Mac-style dock";
+    toggleDockButton.title = isVisible
+      ? "Hide Mac-style dock"
+      : "Show Mac-style dock";
     toggleDockButton.innerHTML = isVisible
       ? '<i class="fa-solid fa-eye-slash" aria-hidden="true"></i>'
       : '<i class="fa-solid fa-eye" aria-hidden="true"></i>';
